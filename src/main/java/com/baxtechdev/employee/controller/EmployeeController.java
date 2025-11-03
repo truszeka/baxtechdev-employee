@@ -44,7 +44,7 @@ public class EmployeeController {
      *
      * @return the sorted list of employee names / a dolgozónevek rendezett listája
      */
-    @GetMapping("/employees")
+    @GetMapping(value = "/employees", params = "!department")
     public List<String> listEmployees() {
         // Delegate to the catalog service for the aggregated list of employees.
         // Átadjuk a katalógus szolgáltatásnak a dolgozók összesített listájának előállítását.
