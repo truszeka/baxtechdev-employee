@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<list>
+<employee>
+<name>George Smith</name>
+<department>finance</department>
+</employee>
+<employee>
+<name>Michael Smith</name>
+<department>it</department>
+<department>finance</department>
+</employee>
+<employee>
+<name>James Doyle</name>
+<department>packaging</department>
+</employee>
+<employee>
+<name>Peter Goeking</name>
+<department>finance</department>
+</employee>
+<employee>
+<name>Joanne Olsen</name>
+<department>finance</department>
+</employee>
+<employee>
+<name>Samuel Palmisano</name>
+<department>it</department>
+</employee>
+<employee>
+<name>Dale Miller</name>
+<department>packaging</department>
+<department>finance</department>
+</employee>
+<employee>
+<name>Peter Goeking</name>
+<department>finance</department>
+</employee>
+<employee>
+<name>James Doyle</name>
+<department>packaging</department>
+</employee>
+<employee>
+<name>Peter Goeking</name>
+<department>it</department>
+</employee>
+</list>
