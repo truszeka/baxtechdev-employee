@@ -2,6 +2,8 @@ package com.baxtechdev.employee.service;
 
 import com.baxtechdev.employee.dto.DepartmentEmployees;
 import com.baxtechdev.employee.model.Employee;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -11,18 +13,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
+import org.springframework.util.CollectionUtils;
 
 /**
  * Loads employees from the XML resource and exposes methods to access them in the
@@ -146,75 +141,59 @@ public class EmployeeCatalogService {
      */
     private List<Employee> loadEmployees() {
         ClassPathResource resource = new ClassPathResource("employee.xml");
+        // Instantiate a dedicated XML mapper for translating structured data into objects.
+        // Létrehozunk egy dedikált XML mappert a strukturált adatok objektummá alakításához.
+        XmlMapper xmlMapper = new XmlMapper();
         try (InputStream inputStream = resource.getInputStream()) {
-            // Configure a DOM builder to parse the simple XML structure.
-            // DOM építőt konfigurálunk az egyszerű XML struktúra feldolgozásához.
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            factory.setNamespaceAware(false);
-            DocumentBuilder builder = factory.newDocumentBuilder();
-            Document document = builder.parse(inputStream);
-            return parseEmployees(document);
-        } catch (IOException | ParserConfigurationException | SAXException e) {
+            // Deserialize the XML document straight into helper transfer objects.
+            // Deszerializáljuk az XML dokumentumot közvetlenül segédátviteli objektumokba.
+            EmployeeListXml employeeList = xmlMapper.readValue(inputStream, EmployeeListXml.class);
+            return parseEmployees(employeeList);
+        } catch (IOException e) {
             log.error("Failed to load employee data from XML", e);
             throw new IllegalStateException("Unable to load employee data", e);
         }
     }
 
     /**
-     * Transforms the DOM document into de-duplicated employee instances.
-     * A DOM dokumentumot duplikációtól mentes dolgozói példányokká alakítja.
+     * Converts the Jackson-mapped structure into deduplicated domain employees.
+     * A Jackson által leképzett struktúrát alakítja duplikációmentes domain dolgozókká.
      */
-    private List<Employee> parseEmployees(Document document) {
-        NodeList employeeNodes = document.getElementsByTagName("employee");
+    private List<Employee> parseEmployees(EmployeeListXml employeeList) {
+        // Guard against an empty XML payload to simplify downstream operations.
+        // Védekezünk az üres XML tartalom ellen, hogy egyszerűbbek legyenek a későbbi műveletek.
+        if (employeeList == null || CollectionUtils.isEmpty(employeeList.getEmployees())) {
+            log.warn("No employee nodes discovered in XML input");
+            return List.of();
+        }
         // Use a map to merge repeated employees under the same full name.
         // Mapet használunk az ismétlődő dolgozók egyesítésére ugyanazon teljes név alatt.
         Map<String, Employee> employeeMap = new HashMap<>();
-        for (int i = 0; i < employeeNodes.getLength(); i++) {
-            Node node = employeeNodes.item(i);
-            if (node.getNodeType() != Node.ELEMENT_NODE) {
-                // Skip non-element nodes that do not represent employee entries.
-                // Kihagyjuk a nem elem típusú node-okat, amelyek nem jelentenek dolgozó bejegyzést.
+        for (EmployeeXml entry : employeeList.getEmployees()) {
+            if (entry == null || entry.getName() == null || entry.getName().isBlank()) {
+                // Skip entries without a valid name to maintain data quality.
+                // Kihagyjuk a hiányzó névvel rendelkező bejegyzéseket az adatminőség megőrzéséért.
                 continue;
             }
-            Element element = (Element) node;
-            String fullName = textContent(element, "name");
-            if (fullName == null || fullName.isBlank()) {
-                // Ignore entries that do not have a valid name specified.
-                // Figyelmen kívül hagyjuk azokat a bejegyzéseket, amelyekhez nincs érvényes név megadva.
-                continue;
-            }
-            String[] parts = splitName(fullName.trim());
+            String[] parts = splitName(entry.getName().trim());
             Employee employee = employeeMap.computeIfAbsent(
-                    fullName.trim(), key -> new Employee(parts[0], parts[1]));
-            NodeList departmentNodes = element.getElementsByTagName("department");
-            for (int j = 0; j < departmentNodes.getLength(); j++) {
-                Node departmentNode = departmentNodes.item(j);
-                if (departmentNode.getNodeType() == Node.ELEMENT_NODE) {
-                    // Register each department listed for the employee.
-                    // Regisztráljuk a dolgozóhoz felsorolt összes osztályt.
-                    employee.addDepartment(departmentNode.getTextContent());
+                    entry.getName().trim(), key -> new Employee(parts[0], parts[1]));
+            if (!CollectionUtils.isEmpty(entry.getDepartments())) {
+                for (String department : entry.getDepartments()) {
+                    // Register each declared department for the deduplicated employee.
+                    // A duplikációmentes dolgozóhoz hozzárendeljük az összes deklarált osztályt.
+                    employee.addDepartment(department);
                 }
             }
         }
         List<Employee> sorted = employeeMap.values().stream()
                 .sorted(EMPLOYEE_NAME_COMPARATOR)
                 .toList();
-        log.info("Parsed {} employees across {} XML nodes", sorted.size(), employeeNodes.getLength());
+        log.info(
+                "Parsed {} employees across {} XML nodes",
+                sorted.size(),
+                employeeList.getEmployees().size());
         return List.copyOf(sorted);
-    }
-
-    /**
-     * Extracts the text content of the first child with the provided tag name.
-     * Kinyeri az első megadott nevű gyermek szöveges tartalmát.
-     */
-    private String textContent(Element element, String tagName) {
-        NodeList nodes = element.getElementsByTagName(tagName);
-        if (nodes.getLength() == 0) {
-            // Return null when the tag is absent so callers can decide how to handle it.
-            // Nullt adunk vissza, ha a tag hiányzik, így a hívó dönthet a kezelésről.
-            return null;
-        }
-        return nodes.item(0).getTextContent();
     }
 
     /**
@@ -229,5 +208,81 @@ public class EmployeeCatalogService {
             return new String[] {parts[0], ""};
         }
         return parts;
+    }
+
+    /**
+     * Lightweight container mirroring the XML root element.
+     * Könnyűsúlyú tároló, amely tükrözi az XML gyökérelemet.
+     */
+    private static class EmployeeListXml {
+
+        // Backing list for the employee elements extracted from XML.
+        // A dolgozó elemeket tároló lista az XML-ből kinyerve.
+        @JacksonXmlElementWrapper(useWrapping = false)
+        @com.fasterxml.jackson.annotation.JsonProperty("employee")
+        private List<EmployeeXml> employees;
+
+        EmployeeListXml() {
+            // Default constructor required by Jackson for instantiation.
+            // Alapértelmezett konstruktor, amelyet a Jackson használ példányosításhoz.
+        }
+
+        List<EmployeeXml> getEmployees() {
+            // Expose the raw employee representations for post-processing.
+            // Elérhetővé tesszük az alkalmazás utófeldolgozásához a dolgozó reprezentációkat.
+            return employees;
+        }
+
+        void setEmployees(List<EmployeeXml> employees) {
+            // Allow Jackson to inject the parsed employee list during deserialization.
+            // Lehetővé tesszük, hogy a Jackson beállítsa a feldolgozott dolgozó listát deszerializáláskor.
+            this.employees = employees;
+        }
+    }
+
+    /**
+     * Lightweight DTO representing an employee entry in the XML file.
+     * Könnyűsúlyú DTO, amely az XML fájl egy dolgozó bejegyzését reprezentálja.
+     */
+    private static class EmployeeXml {
+
+        // Full name string as it appears in the XML document.
+        // A teljes név szövege úgy, ahogy az XML dokumentumban szerepel.
+        private String name;
+
+        // All departments listed for the XML employee element.
+        // Az XML dolgozó elemhez felsorolt összes osztály.
+        @JacksonXmlElementWrapper(useWrapping = false)
+        @com.fasterxml.jackson.annotation.JsonProperty("department")
+        private List<String> departments;
+
+        EmployeeXml() {
+            // Default constructor for the XML mapper to instantiate the DTO.
+            // Alapértelmezett konstruktor, hogy az XML mapper példányosíthassa a DTO-t.
+        }
+
+        String getName() {
+            // Provide the raw combined name for business-level transformation.
+            // Biznisz szintű átalakításhoz adjuk vissza a nyers kombinált nevet.
+            return name;
+        }
+
+        void setName(String name) {
+            // Accept the parsed name supplied by the XML mapper.
+            // Elfogadjuk az XML mapper által szolgáltatott feldolgozott nevet.
+            this.name = name;
+        }
+
+        List<String> getDepartments() {
+            // Return the list of departments so we can enrich the domain object.
+            // Visszaadjuk az osztályok listáját, hogy gazdagítsuk a domain objektumot.
+            return departments;
+        }
+
+        void setDepartments(List<String> departments) {
+            // Allow the XML mapper to populate the department collection.
+            // Lehetővé tesszük, hogy az XML mapper feltöltse az osztálygyűjteményt.
+            this.departments = departments;
+        }
     }
 }
