@@ -72,6 +72,42 @@ class EmployeeCatalogServiceTest {
     }
 
     @Test
+    @DisplayName("Should return empty list when department parameter is null")
+    void shouldHandleNullDepartment() {
+        // Execute the filter with a null department to mirror invalid client input.
+        // Null osztály paraméterrel futtatjuk a szűrőt az érvénytelen kliens bemenet modellezésére.
+        List<String> result = service.getEmployeeNamesByDepartment(null);
+
+        // Expect no employees to be returned when the department filter is absent.
+        // Arra számítunk, hogy nem kapunk dolgozókat, ha az osztályszűrő hiányzik.
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Should return empty list when department parameter is blank")
+    void shouldHandleBlankDepartment() {
+        // Exercise the department filter with whitespace-only input.
+        // Csak szóközöket tartalmazó bemenettel vizsgáljuk a szűrőt.
+        List<String> result = service.getEmployeeNamesByDepartment("   ");
+
+        // Confirm that a blank department is treated as invalid and yields no matches.
+        // Megerősítjük, hogy az üres osztály érvénytelennek számít és nem ad találatot.
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Should return empty list when department does not exist")
+    void shouldHandleUnknownDepartment() {
+        // Request employees for a department that is not present in the dataset.
+        // Olyan osztály dolgozóit kérjük le, amely nem szerepel az adathalmazban.
+        List<String> result = service.getEmployeeNamesByDepartment("legal");
+
+        // Validate that an unknown department yields no entries rather than throwing.
+        // Ellenőrizzük, hogy az ismeretlen osztály üres listát adjon vissza kivétel helyett.
+        assertThat(result).isEmpty();
+    }
+
+    @Test
     @DisplayName("Should group employees by department")
     void shouldGroupByDepartment() {
         // Request the grouped employee representation.
