@@ -26,6 +26,12 @@ mvn spring-boot:run
 
 A szolgáltatás JSON formátumban válaszol.
 
+## Swagger / OpenAPI felület
+- Swagger UI: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
+- OpenAPI dokumentum: [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs)
+
+A Swagger UI segítségével böngészőből is kipróbálhatók a REST végpontok.
+
 ## Tesztek futtatása
 ```bash
 mvn test
