@@ -22,6 +22,12 @@ public class Employee {
     private final String fullName;
     // Mutable set of departments that the employee belongs to.
     // A dolgozóhoz tartozó osztályok módosítható halmaza.
+ */
+public class Employee {
+
+    private final String firstName;
+    private final String lastName;
+    private final String fullName;
     private final Set<String> departments = new HashSet<>();
 
     /**
